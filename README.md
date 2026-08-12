@@ -79,28 +79,28 @@ python3 -m ds_launcher \
 | `DELETE` | `/rooms/{id}` | 关房回收 |
 | `POST` | `/ds/update` | 重新从 COS 下载 `ds.zip` 并覆盖本地 DS |
 
-### 更新 DS
+### 更新 DS（后台）
 
-有活跃房间时默认拒绝；`force=true` 会先停房再更新。
+`POST /ds/update` **立即返回**，下载在后台执行。有活跃房间时默认拒绝；`force=true` 会先停房再更新。
 
 ```bash
-# 无活跃房间
+# 触发后台更新
 curl -s -X POST http://127.0.0.1:1096/ds/update
 
-# 强制停房并更新
+# 强制停房并后台更新
 curl -s -X POST http://127.0.0.1:1096/ds/update \
   -H "Content-Type: application/json" \
   -d '{"force":true}'
+
+# 查询进度/结果
+curl -s http://127.0.0.1:1096/ds/update
+# 或看 health 里的 updating / last_update
+curl -s http://127.0.0.1:1096/health
 ```
 
-若启动时设置了 `DS_ADMIN_TOKEN`，请求需带：
+`last_update.status`：`idle` / `running` / `ok` / `failed`。
 
-```bash
-curl -s -X POST http://127.0.0.1:1096/ds/update \
-  -H "X-Admin-Token: <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"force":true}'
-```
+若启动时设置了 `DS_ADMIN_TOKEN`，POST 需带 `-H "X-Admin-Token: <token>"`。
 
 ```bash
 curl -s -X POST http://127.0.0.1:1096/rooms \

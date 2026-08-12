@@ -48,6 +48,15 @@ class RoomManager(object):
         self._rooms = {}  # type: Dict[str, Room]
         self._closed = False
         self._updating = False
+        self._last_update = {
+            "status": "idle",  # idle | running | ok | failed
+            "error": "",
+            "stopped_rooms": 0,
+            "elapsed_sec": 0,
+            "started_at": "",
+            "finished_at": "",
+            "ds_binary": self._config.ds_binary,
+        }
 
     def create_room(self, name):
         # type: (str) -> Room
@@ -139,6 +148,7 @@ class RoomManager(object):
         with self._lock:
             rooms = list(self._rooms.values())
             updating = self._updating
+            last_update = dict(self._last_update)
         return {
             "rooms": len(rooms),
             "ready": sum(1 for r in rooms if r.status == "ready"),
@@ -148,15 +158,20 @@ class RoomManager(object):
             "port_max": self._config.port_max,
             "max_rooms": self._config.max_rooms,
             "updating": updating,
+            "last_update": last_update,
         }
 
     def live_room_count(self):
         with self._lock:
             return sum(1 for r in self._rooms.values() if r.status in ("starting", "ready"))
 
-    def update_ds(self, force=False):
+    def get_update_status(self):
+        with self._lock:
+            return dict(self._last_update)
+
+    def start_update_ds(self, force=False):
         # type: (bool) -> dict
-        """Re-download DS zip via scripts/download_ds.sh."""
+        """Start DS re-download in background; returns immediately."""
         script = self._config.download_script
         if not script or not os.path.isfile(script):
             raise RuntimeError("download script not found: {0}".format(script))
@@ -171,8 +186,37 @@ class RoomManager(object):
                 )
             self._updating = True
             stop_ids = [r.room_id for r in live] if force else []
+            started_at = datetime.now(timezone.utc).isoformat()
+            self._last_update = {
+                "status": "running",
+                "error": "",
+                "stopped_rooms": 0,
+                "elapsed_sec": 0,
+                "started_at": started_at,
+                "finished_at": "",
+                "ds_binary": self._config.ds_binary,
+            }
 
+        worker = threading.Thread(
+            target=self._run_update_ds,
+            args=(stop_ids, script),
+            name="ds-update",
+        )
+        worker.daemon = True
+        worker.start()
+        return {
+            "ok": True,
+            "accepted": True,
+            "status": "running",
+            "message": "DS update started in background",
+            "force": bool(force),
+            "will_stop_rooms": len(stop_ids),
+        }
+
+    def _run_update_ds(self, stop_ids, script):
         stopped = 0
+        started = time.time()
+        error = ""
         try:
             for room_id in stop_ids:
                 if self.stop_room(room_id):
@@ -182,7 +226,6 @@ class RoomManager(object):
             ds_dir = os.path.dirname(os.path.abspath(self._config.ds_binary))
             env["DS_DIR"] = ds_dir
             log.info("updating DS via %s DS_DIR=%s", script, ds_dir)
-            started = time.time()
             proc = subprocess.Popen(
                 ["/bin/bash", script],
                 stdout=subprocess.PIPE,
@@ -192,7 +235,6 @@ class RoomManager(object):
                 cwd=os.path.dirname(os.path.dirname(os.path.abspath(script))),
             )
             out, _ = proc.communicate()
-            elapsed = time.time() - started
             if out:
                 for line in out.splitlines():
                     log.info("ds-update: %s", line)
@@ -205,16 +247,23 @@ class RoomManager(object):
                 os.chmod(self._config.ds_binary, 0o755)
             except OSError:
                 pass
-
-            return {
-                "ok": True,
-                "stopped_rooms": stopped,
-                "elapsed_sec": round(elapsed, 2),
-                "ds_binary": self._config.ds_binary,
-            }
+            log.info("DS update finished ok")
+        except Exception as exc:
+            error = str(exc)
+            log.exception("DS update failed")
         finally:
+            elapsed = round(time.time() - started, 2)
             with self._lock:
                 self._updating = False
+                self._last_update = {
+                    "status": "failed" if error else "ok",
+                    "error": error,
+                    "stopped_rooms": stopped,
+                    "elapsed_sec": elapsed,
+                    "started_at": self._last_update.get("started_at", ""),
+                    "finished_at": datetime.now(timezone.utc).isoformat(),
+                    "ds_binary": self._config.ds_binary,
+                }
 
     def _wait_ready(self, room, timeout):
         deadline = time.time() + timeout

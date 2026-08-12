@@ -64,6 +64,11 @@ def make_handler(manager):
                 self._send(status, body, ctype)
                 return
 
+            if path == "/ds/update":
+                status, body, ctype = _json_bytes(manager.get_update_status())
+                self._send(status, body, ctype)
+                return
+
             if path == "/rooms":
                 status, body, ctype = _json_bytes({"rooms": manager.list_rooms()})
                 self._send(status, body, ctype)
@@ -104,8 +109,8 @@ def make_handler(manager):
                 if query.get("force", [""])[0] in ("1", "true", "True"):
                     force = True
                 try:
-                    result = manager.update_ds(force=force)
-                    status, body, ctype = _json_bytes(result, 200)
+                    result = manager.start_update_ds(force=force)
+                    status, body, ctype = _json_bytes(result, 202)
                 except RuntimeError as exc:
                     status, body, ctype = _json_bytes({"error": str(exc)}, 409)
                 except Exception as exc:
