@@ -24,6 +24,7 @@ need() {
 
 need python3
 need curl
+need unzip
 
 chmod +x scripts/download_ds.sh scripts/start.sh
 ./scripts/download_ds.sh
