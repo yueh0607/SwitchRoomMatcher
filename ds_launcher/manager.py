@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import os
 import signal
@@ -7,7 +5,6 @@ import subprocess
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
@@ -17,19 +14,19 @@ from .port_pool import PortPool
 log = logging.getLogger("ds_launcher")
 
 
-@dataclass
-class Room:
-    room_id: str
-    name: str
-    port: int
-    pid: int
-    endpoint: str = ""
-    status: str = "starting"  # starting | ready | dead | failed
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    error: str = ""
-    process: subprocess.Popen = field(repr=False, default=None)  # type: ignore[assignment]
+class Room(object):
+    def __init__(self, room_id, name, port, pid, process):
+        self.room_id = room_id
+        self.name = name
+        self.port = port
+        self.pid = pid
+        self.process = process
+        self.endpoint = ""
+        self.status = "starting"  # starting | ready | dead | failed
+        self.created_at = datetime.now(timezone.utc).isoformat()
+        self.error = ""
 
-    def to_dict(self) -> dict:
+    def to_dict(self):
         return {
             "room_id": self.room_id,
             "name": self.name,
@@ -42,15 +39,17 @@ class Room:
         }
 
 
-class RoomManager:
-    def __init__(self, config: Config) -> None:
+class RoomManager(object):
+    def __init__(self, config):
+        # type: (Config) -> None
         self._config = config
         self._ports = PortPool(config.port_min, config.port_max)
         self._lock = threading.Lock()
-        self._rooms: Dict[str, Room] = {}
+        self._rooms = {}  # type: Dict[str, Room]
         self._closed = False
 
-    def create_room(self, name: str) -> Room:
+    def create_room(self, name):
+        # type: (str) -> Room
         if self._closed:
             raise RuntimeError("manager is shutting down")
 
@@ -63,16 +62,16 @@ class RoomManager:
         with self._lock:
             live_rooms = [r for r in self._rooms.values() if r.status in ("starting", "ready")]
             if len(live_rooms) >= self._config.max_rooms:
-                raise RuntimeError(f"max rooms reached ({self._config.max_rooms})")
+                raise RuntimeError("max rooms reached ({0})".format(self._config.max_rooms))
             if any(r.name == name for r in live_rooms):
-                raise RuntimeError(f"room name already exists: {name}")
+                raise RuntimeError("room name already exists: {0}".format(name))
 
         port = self._ports.acquire()
         if port is None:
             raise RuntimeError("no free port in configured range")
 
         room_id = uuid.uuid4().hex[:12]
-        cmd = [self._config.ds_binary, "-port", str(port), *self._config.ds_extra_args]
+        cmd = [self._config.ds_binary, "-port", str(port)] + list(self._config.ds_extra_args)
         log.info("spawn room=%s name=%s port=%s cmd=%s", room_id, name, port, cmd)
 
         try:
@@ -80,13 +79,13 @@ class RoomManager:
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                text=True,
+                universal_newlines=True,
                 bufsize=1,
                 start_new_session=True,
             )
         except OSError as exc:
             self._ports.release(port)
-            raise RuntimeError(f"failed to spawn DS: {exc}") from exc
+            raise RuntimeError("failed to spawn DS: {0}".format(exc))
 
         room = Room(room_id=room_id, name=name, port=port, pid=proc.pid, process=proc)
         with self._lock:
@@ -95,27 +94,30 @@ class RoomManager:
         worker = threading.Thread(
             target=self._watch_room,
             args=(room,),
-            name=f"ds-room-{room_id}",
-            daemon=True,
+            name="ds-room-{0}".format(room_id),
         )
+        worker.daemon = True
         worker.start()
 
         if not self._wait_ready(room, self._config.ready_timeout_sec):
             self.stop_room(room_id)
-            raise RuntimeError(room.error or f"timeout waiting for {self._config.ready_token}")
+            raise RuntimeError(room.error or "timeout waiting for {0}".format(self._config.ready_token))
 
         return room
 
-    def list_rooms(self) -> List[dict]:
+    def list_rooms(self):
+        # type: () -> List[dict]
         with self._lock:
             return [r.to_dict() for r in self._rooms.values()]
 
-    def get_room(self, room_id: str) -> Optional[dict]:
+    def get_room(self, room_id):
+        # type: (str) -> Optional[dict]
         with self._lock:
             room = self._rooms.get(room_id)
             return room.to_dict() if room else None
 
-    def stop_room(self, room_id: str) -> bool:
+    def stop_room(self, room_id):
+        # type: (str) -> bool
         with self._lock:
             room = self._rooms.get(room_id)
         if room is None:
@@ -123,14 +125,14 @@ class RoomManager:
         self._terminate(room)
         return True
 
-    def shutdown(self) -> None:
+    def shutdown(self):
         self._closed = True
         with self._lock:
             room_ids = list(self._rooms.keys())
         for room_id in room_ids:
             self.stop_room(room_id)
 
-    def stats(self) -> dict:
+    def stats(self):
         with self._lock:
             rooms = list(self._rooms.values())
         return {
@@ -143,7 +145,7 @@ class RoomManager:
             "max_rooms": self._config.max_rooms,
         }
 
-    def _wait_ready(self, room: Room, timeout: float) -> bool:
+    def _wait_ready(self, room, timeout):
         deadline = time.time() + timeout
         while time.time() < deadline:
             if room.status == "ready":
@@ -153,11 +155,11 @@ class RoomManager:
             time.sleep(0.05)
         if room.status != "ready":
             room.status = "failed"
-            room.error = f"timeout waiting for {self._config.ready_token}"
+            room.error = "timeout waiting for {0}".format(self._config.ready_token)
             return False
         return True
 
-    def _watch_room(self, room: Room) -> None:
+    def _watch_room(self, room):
         assert room.process.stdout is not None
         token = self._config.ready_token
         try:
@@ -172,7 +174,7 @@ class RoomManager:
                 room.endpoint = endpoint
                 room.status = "ready"
                 log.info("room ready id=%s endpoint=%s", room.room_id, endpoint)
-        except Exception as exc:  # noqa: BLE001 - worker must not die silently
+        except Exception as exc:
             room.status = "failed"
             room.error = str(exc)
             log.exception("room watcher failed id=%s", room.room_id)
@@ -183,11 +185,11 @@ class RoomManager:
         elif room.status == "starting":
             room.status = "failed"
             if not room.error:
-                room.error = f"DS exited before ready, code={code}"
+                room.error = "DS exited before ready, code={0}".format(code)
         log.info("room exited id=%s code=%s status=%s", room.room_id, code, room.status)
         self._ports.release(room.port)
 
-    def _terminate(self, room: Room) -> None:
+    def _terminate(self, room):
         proc = room.process
         if proc.poll() is not None:
             self._ports.release(room.port)
@@ -196,7 +198,7 @@ class RoomManager:
         log.info("stopping room id=%s pid=%s", room.room_id, room.pid)
         try:
             os.killpg(proc.pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError, OSError):
+        except (ProcessLookupError, OSError):
             try:
                 proc.terminate()
             except OSError:
@@ -207,29 +209,32 @@ class RoomManager:
         except subprocess.TimeoutExpired:
             try:
                 os.killpg(proc.pid, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError, OSError):
+            except (ProcessLookupError, OSError):
                 try:
                     proc.kill()
                 except OSError:
                     pass
-            proc.wait(timeout=3)
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                pass
 
         if room.status not in ("failed", "dead"):
             room.status = "dead"
         self._ports.release(room.port)
 
-    def _rewrite_endpoint(self, endpoint: str) -> str:
+    def _rewrite_endpoint(self, endpoint):
         host = self._config.public_host
         if not host:
             return endpoint
         if ":" not in endpoint:
             return endpoint
         _, port_text = endpoint.rsplit(":", 1)
-        return f"{host}:{port_text}"
+        return "{0}:{1}".format(host, port_text)
 
     @staticmethod
-    def _parse_ready(line: str, token: str) -> Optional[str]:
-        # Expected: "DS_READY 192.168.1.10:7777"
+    def _parse_ready(line, token):
+        # type: (str, str) -> Optional[str]
         parts = line.strip().split()
         if len(parts) < 2:
             return None

@@ -7,12 +7,12 @@
 - 启动参数：`-port 7777`
 - 就绪输出：`DS_READY <ip>:<port>`
 
-仅依赖 **Python 3.10+ 标准库** + `curl` + `unzip`。  
+仅依赖 **Python 3.6+ 标准库** + `curl` + `unzip`（兼容 CentOS 默认 python3）。  
 DS 以 **单个 zip** 放在腾讯云 COS（公有读）；本仓库不管打包/上传。
 
 ## Linux 部署
 
-机器要求：`python3`、`curl`、`unzip`；放行 **TCP 8080** 和 **UDP 7777-7877**。
+机器要求：`python3`（>=3.6）、`curl`、`unzip`；放行 **TCP 8080** 和 **UDP 7777-7877**。
 
 ```bash
 # CentOS

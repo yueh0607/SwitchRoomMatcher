@@ -1,40 +1,50 @@
-from __future__ import annotations
-
 import argparse
 import os
-from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 
-@dataclass
-class Config:
+class Config(object):
     """Runtime config for the single-machine DS allocator."""
 
-    ds_binary: str
-    ds_extra_args: List[str] = field(default_factory=list)
-    port_min: int = 7777
-    port_max: int = 7877
-    max_rooms: int = 32
-    ready_timeout_sec: float = 60.0
-    public_host: str = ""
-    api_host: str = "0.0.0.0"
-    api_port: int = 8080
-    ready_token: str = "DS_READY"
+    def __init__(
+        self,
+        ds_binary,
+        ds_extra_args=None,
+        port_min=7777,
+        port_max=7877,
+        max_rooms=32,
+        ready_timeout_sec=60.0,
+        public_host="",
+        api_host="0.0.0.0",
+        api_port=8080,
+        ready_token="DS_READY",
+    ):
+        self.ds_binary = ds_binary
+        self.ds_extra_args = list(ds_extra_args or [])
+        self.port_min = port_min
+        self.port_max = port_max
+        self.max_rooms = max_rooms
+        self.ready_timeout_sec = ready_timeout_sec
+        self.public_host = public_host
+        self.api_host = api_host
+        self.api_port = api_port
+        self.ready_token = ready_token
 
     @property
-    def port_capacity(self) -> int:
+    def port_capacity(self):
         return max(0, self.port_max - self.port_min + 1)
 
 
-def _split_args(raw: str) -> List[str]:
+def _split_args(raw):
+    # type: (str) -> List[str]
     raw = (raw or "").strip()
     if not raw:
         return []
-    # Simple split; quote-aware parsing is unnecessary for typical Unity flags.
     return raw.split()
 
 
-def load_config(argv: List[str] | None = None) -> Config:
+def load_config(argv=None):
+    # type: (Optional[List[str]]) -> Config
     parser = argparse.ArgumentParser(
         description="Allocate Dedicated Server processes on a single Linux machine.",
     )
