@@ -25,31 +25,61 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
-mapfile -t FILES < <(grep -vE '^\s*(#|$)' "${MANIFEST}")
-if [[ "${#FILES[@]}" -eq 0 ]]; then
+if command -v python3 >/dev/null 2>&1; then
+  PY=python3
+elif command -v python >/dev/null 2>&1; then
+  PY=python
+else
+  echo "need python3" >&2
+  exit 1
+fi
+
+FILES=()
+while IFS= read -r line || [[ -n "${line}" ]]; do
+  line="${line//$'\r'/}"
+  [[ -z "${line}" || "${line}" =~ ^[[:space:]]*# ]] && continue
+  FILES+=("${line}")
+done < "${MANIFEST}"
+
+total="${#FILES[@]}"
+if [[ "${total}" -eq 0 ]]; then
   echo "manifest is empty: ${MANIFEST}" >&2
   exit 1
 fi
 
-echo "Downloading ${#FILES[@]} files from ${DS_BASE_URL} -> ${DS_DIR}"
+echo "Downloading ${total} files from ${DS_BASE_URL} -> ${DS_DIR}"
 rm -rf "${DS_DIR}"
 mkdir -p "${DS_DIR}"
 
 failed=0
+ok=0
+idx=0
+start_ts="$(date +%s)"
+
 for rel in "${FILES[@]}"; do
-  rel="${rel//$'\r'/}"
-  [[ -z "${rel}" ]] && continue
+  idx=$((idx + 1))
+  pct=$((idx * 100 / total))
   dest="${DS_DIR}/${rel}"
   mkdir -p "$(dirname "${dest}")"
-  # Encode path segments but keep slashes (handles spaces etc).
-  if command -v python3 >/dev/null 2>&1; then PY=python3; else PY=python; fi
   enc="$("$PY" -c 'import sys,urllib.parse; print("/".join(urllib.parse.quote(p, safe="") for p in sys.argv[1].split("/")))' "${rel}")"
   url="${DS_BASE_URL}/${enc}"
-  if ! curl -fsSL --retry 3 --globoff -o "${dest}" "${url}"; then
-    echo "FAILED: ${rel}" >&2
+
+  # Same-line progress: [12/257] 4% path...
+  printf "\r[%d/%d] %d%%  %s" "${idx}" "${total}" "${pct}" "${rel}"
+  # Pad/clear rest of previous longer filename.
+  printf "%-40s" ""
+  printf "\r[%d/%d] %d%%  %s" "${idx}" "${total}" "${pct}" "${rel}"
+
+  if curl -fsSL --retry 3 --globoff -o "${dest}" "${url}"; then
+    ok=$((ok + 1))
+  else
+    printf "\nFAILED: %s\n" "${rel}" >&2
     failed=$((failed + 1))
   fi
 done
+
+elapsed=$(( $(date +%s) - start_ts ))
+printf "\nDone in %ds: ok=%d failed=%d\n" "${elapsed}" "${ok}" "${failed}"
 
 if [[ "${failed}" -ne 0 ]]; then
   echo "download finished with ${failed} failures (check COS upload completeness)" >&2
