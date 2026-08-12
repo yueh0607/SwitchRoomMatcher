@@ -3,7 +3,7 @@ import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from typing import Any, Callable, Dict, Tuple
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from .manager import RoomManager
 
@@ -42,8 +42,21 @@ def make_handler(manager):
                 return {}
             return json.loads(raw.decode("utf-8"))
 
+        def _check_admin(self):
+            token = manager._config.admin_token
+            if not token:
+                return True
+            header = self.headers.get("X-Admin-Token", "")
+            auth = self.headers.get("Authorization", "")
+            if header == token:
+                return True
+            if auth.startswith("Bearer ") and auth[7:] == token:
+                return True
+            return False
+
         def do_GET(self):
-            path = urlparse(self.path).path.rstrip("/") or "/"
+            parsed = urlparse(self.path)
+            path = parsed.path.rstrip("/") or "/"
             if path == "/health":
                 payload = {"ok": True}
                 payload.update(manager.stats())
@@ -70,7 +83,37 @@ def make_handler(manager):
             self._send(status, body, ctype)
 
         def do_POST(self):
-            path = urlparse(self.path).path.rstrip("/") or "/"
+            parsed = urlparse(self.path)
+            path = parsed.path.rstrip("/") or "/"
+            query = parse_qs(parsed.query or "")
+
+            if path == "/ds/update":
+                if not self._check_admin():
+                    status, body, ctype = _json_bytes({"error": "unauthorized"}, 401)
+                    self._send(status, body, ctype)
+                    return
+                try:
+                    payload = self._read_json()
+                except json.JSONDecodeError:
+                    status, body, ctype = _json_bytes({"error": "invalid json"}, 400)
+                    self._send(status, body, ctype)
+                    return
+                force = False
+                if isinstance(payload, dict) and payload.get("force") in (True, 1, "1", "true", "True"):
+                    force = True
+                if query.get("force", [""])[0] in ("1", "true", "True"):
+                    force = True
+                try:
+                    result = manager.update_ds(force=force)
+                    status, body, ctype = _json_bytes(result, 200)
+                except RuntimeError as exc:
+                    status, body, ctype = _json_bytes({"error": str(exc)}, 409)
+                except Exception as exc:
+                    log.exception("ds update failed")
+                    status, body, ctype = _json_bytes({"error": str(exc)}, 500)
+                self._send(status, body, ctype)
+                return
+
             if path != "/rooms":
                 status, body, ctype = _json_bytes({"error": "not found"}, 404)
                 self._send(status, body, ctype)

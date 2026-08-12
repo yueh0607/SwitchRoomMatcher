@@ -18,6 +18,8 @@ class Config(object):
         api_host="0.0.0.0",
         api_port=1096,
         ready_token="DS_READY",
+        download_script="",
+        admin_token="",
     ):
         self.ds_binary = ds_binary
         self.ds_extra_args = list(ds_extra_args or [])
@@ -29,6 +31,8 @@ class Config(object):
         self.api_host = api_host
         self.api_port = api_port
         self.ready_token = ready_token
+        self.download_script = download_script
+        self.admin_token = admin_token
 
     @property
     def port_capacity(self):
@@ -74,6 +78,16 @@ def load_config(argv=None):
     )
     parser.add_argument("--api-host", default=os.environ.get("DS_API_HOST", "0.0.0.0"))
     parser.add_argument("--api-port", type=int, default=int(os.environ.get("DS_API_PORT", "1096")))
+    parser.add_argument(
+        "--download-script",
+        default=os.environ.get("DS_DOWNLOAD_SCRIPT", ""),
+        help="Path to scripts/download_ds.sh (env: DS_DOWNLOAD_SCRIPT)",
+    )
+    parser.add_argument(
+        "--admin-token",
+        default=os.environ.get("DS_ADMIN_TOKEN", ""),
+        help="Required for POST /ds/update when set (env: DS_ADMIN_TOKEN)",
+    )
 
     args = parser.parse_args(argv)
     if not args.ds_binary:
@@ -85,6 +99,12 @@ def load_config(argv=None):
     if args.max_rooms <= 0:
         parser.error("--max-rooms must be > 0")
 
+    download_script = (args.download_script or "").strip()
+    if not download_script:
+        # Default: <repo>/scripts/download_ds.sh relative to ds binary ../../scripts
+        repo_guess = os.path.abspath(os.path.join(os.path.dirname(args.ds_binary), ".."))
+        download_script = os.path.join(repo_guess, "scripts", "download_ds.sh")
+
     return Config(
         ds_binary=args.ds_binary,
         ds_extra_args=_split_args(args.ds_extra_args),
@@ -95,4 +115,6 @@ def load_config(argv=None):
         public_host=args.public_host.strip(),
         api_host=args.api_host,
         api_port=args.api_port,
+        download_script=download_script,
+        admin_token=(args.admin_token or "").strip(),
     )

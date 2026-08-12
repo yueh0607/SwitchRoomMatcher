@@ -32,12 +32,21 @@ fi
 chmod +x "${DS_BINARY}" || true
 find "$(dirname "${DS_BINARY}")" -type f -name "*.so" -exec chmod +x {} \; 2>/dev/null || true
 
+DOWNLOAD_SCRIPT="${DS_DOWNLOAD_SCRIPT:-${ROOT_DIR}/scripts/download_ds.sh}"
+ADMIN_TOKEN="${DS_ADMIN_TOKEN:-}"
+
 echo "Starting matcher api=${API_HOST}:${API_PORT} ds=${DS_BINARY} public=${PUBLIC_HOST}"
-exec python3 -m ds_launcher \
-  --ds-binary "${DS_BINARY}" \
-  --port-min "${PORT_MIN}" \
-  --port-max "${PORT_MAX}" \
-  --max-rooms "${MAX_ROOMS}" \
-  --public-host "${PUBLIC_HOST}" \
-  --api-host "${API_HOST}" \
+ARGS=(
+  --ds-binary "${DS_BINARY}"
+  --port-min "${PORT_MIN}"
+  --port-max "${PORT_MAX}"
+  --max-rooms "${MAX_ROOMS}"
+  --public-host "${PUBLIC_HOST}"
+  --api-host "${API_HOST}"
   --api-port "${API_PORT}"
+  --download-script "${DOWNLOAD_SCRIPT}"
+)
+if [[ -n "${ADMIN_TOKEN}" ]]; then
+  ARGS+=(--admin-token "${ADMIN_TOKEN}")
+fi
+exec python3 -m ds_launcher "${ARGS[@]}"
