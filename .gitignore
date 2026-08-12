@@ -1,4 +1,4 @@
-﻿.env
+.env
 .idea/
 .vscode/
 *.log
@@ -7,3 +7,5 @@
 /ds/
 /dist/
 *.zip
+matcher.pid
+matcher.log

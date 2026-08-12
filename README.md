@@ -26,12 +26,24 @@ chmod +x scripts/*.sh
 ./scripts/deploy_linux.sh <你的服务器IP>
 ```
 
-后台：
+后台（SSH 断开也继续跑）：
 
 ```bash
-./scripts/download_ds.sh
-nohup ./scripts/start.sh <你的服务器IP> > matcher.log 2>&1 &
+./scripts/download_ds.sh          # 首次需要
+./scripts/start_daemon.sh <你的服务器IP>
 curl -s http://127.0.0.1:1096/health
+./scripts/stop_daemon.sh          # 停止
+# 日志: matcher.log
+```
+
+或用 systemd（开机自启）：
+
+```bash
+# 编辑 deploy/switch-room-matcher.service 里的路径/IP 后：
+cp deploy/switch-room-matcher.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now switch-room-matcher
+systemctl status switch-room-matcher
 ```
 
 ## DS 压缩包（COS）
@@ -79,28 +91,28 @@ python3 -m ds_launcher \
 | `DELETE` | `/rooms/{id}` | 关房回收 |
 | `POST` | `/ds/update` | 重新从 COS 下载 `ds.zip` 并覆盖本地 DS |
 
-### 更新 DS（后台）
+### 更新 DS
 
-`POST /ds/update` **立即返回**，下载在后台执行。有活跃房间时默认拒绝；`force=true` 会先停房再更新。
+有活跃房间时默认拒绝；`force=true` 会先停房再更新。
 
 ```bash
-# 触发后台更新
+# 无活跃房间
 curl -s -X POST http://127.0.0.1:1096/ds/update
 
-# 强制停房并后台更新
+# 强制停房并更新
 curl -s -X POST http://127.0.0.1:1096/ds/update \
   -H "Content-Type: application/json" \
   -d '{"force":true}'
-
-# 查询进度/结果
-curl -s http://127.0.0.1:1096/ds/update
-# 或看 health 里的 updating / last_update
-curl -s http://127.0.0.1:1096/health
 ```
 
-`last_update.status`：`idle` / `running` / `ok` / `failed`。
+若启动时设置了 `DS_ADMIN_TOKEN`，请求需带：
 
-若启动时设置了 `DS_ADMIN_TOKEN`，POST 需带 `-H "X-Admin-Token: <token>"`。
+```bash
+curl -s -X POST http://127.0.0.1:1096/ds/update \
+  -H "X-Admin-Token: <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"force":true}'
+```
 
 ```bash
 curl -s -X POST http://127.0.0.1:1096/rooms \

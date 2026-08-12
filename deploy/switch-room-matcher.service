@@ -1,0 +1,17 @@
+[Unit]
+Description=Switch Room Matcher (DS allocator)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/SwitchRoomMatcher
+Environment=DS_BINARY=/root/SwitchRoomMatcher/ds/SwitchGame.x86_64
+Environment=DS_DOWNLOAD_SCRIPT=/root/SwitchRoomMatcher/scripts/download_ds.sh
+# Change this to your public IP clients use to join:
+Environment=DS_PUBLIC_HOST=118.25.8.119
+ExecStart=/usr/bin/python3 -m ds_launcher --ds-binary ${DS_BINARY} --public-host ${DS_PUBLIC_HOST} --download-script ${DS_DOWNLOAD_SCRIPT}
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
