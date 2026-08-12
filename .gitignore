@@ -1,0 +1,9 @@
+﻿.env
+.idea/
+.vscode/
+*.log
+
+# DS binaries are downloaded on the machine, not committed.
+/ds/
+/dist/
+*.zip
