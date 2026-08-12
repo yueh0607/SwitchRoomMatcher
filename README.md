@@ -12,7 +12,7 @@ DS 以 **单个 zip** 放在腾讯云 COS（公有读）；本仓库不管打包
 
 ## Linux 部署
 
-机器要求：`python3`（>=3.6）、`curl`、`unzip`；放行 **TCP 8080** 和 **UDP 7777-7877**。
+机器要求：`python3`（>=3.6）、`curl`、`unzip`；放行 **TCP 1096**（API）和 **UDP 7777-7780**（最多 4 个房间）。
 
 ```bash
 # CentOS
@@ -31,7 +31,7 @@ chmod +x scripts/*.sh
 ```bash
 ./scripts/download_ds.sh
 nohup ./scripts/start.sh <你的服务器IP> > matcher.log 2>&1 &
-curl -s http://127.0.0.1:8080/health
+curl -s http://127.0.0.1:1096/health
 ```
 
 ## DS 压缩包（COS）
@@ -62,10 +62,10 @@ Linux 下载：
 python3 -m ds_launcher \
   --ds-binary ./ds/SwitchGame.x86_64 \
   --port-min 7777 \
-  --port-max 7877 \
-  --max-rooms 32 \
+  --port-max 7780 \
+  --max-rooms 4 \
   --public-host 203.0.113.10 \
-  --api-port 8080
+  --api-port 1096
 ```
 
 ## HTTP API
@@ -79,7 +79,7 @@ python3 -m ds_launcher \
 | `DELETE` | `/rooms/{id}` | 关房回收 |
 
 ```bash
-curl -s -X POST http://127.0.0.1:8080/rooms \
+curl -s -X POST http://127.0.0.1:1096/rooms \
   -H "Content-Type: application/json" \
   -d '{"name":"朋友局-1"}'
 ```

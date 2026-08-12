@@ -11,12 +11,12 @@ class Config(object):
         ds_binary,
         ds_extra_args=None,
         port_min=7777,
-        port_max=7877,
-        max_rooms=32,
+        port_max=7780,
+        max_rooms=4,
         ready_timeout_sec=60.0,
         public_host="",
         api_host="0.0.0.0",
-        api_port=8080,
+        api_port=1096,
         ready_token="DS_READY",
     ):
         self.ds_binary = ds_binary
@@ -59,8 +59,8 @@ def load_config(argv=None):
         help='Extra args appended after "-port N" (env: DS_EXTRA_ARGS)',
     )
     parser.add_argument("--port-min", type=int, default=int(os.environ.get("DS_PORT_MIN", "7777")))
-    parser.add_argument("--port-max", type=int, default=int(os.environ.get("DS_PORT_MAX", "7877")))
-    parser.add_argument("--max-rooms", type=int, default=int(os.environ.get("DS_MAX_ROOMS", "32")))
+    parser.add_argument("--port-max", type=int, default=int(os.environ.get("DS_PORT_MAX", "7780")))
+    parser.add_argument("--max-rooms", type=int, default=int(os.environ.get("DS_MAX_ROOMS", "4")))
     parser.add_argument(
         "--ready-timeout",
         type=float,
@@ -73,7 +73,7 @@ def load_config(argv=None):
         help="Rewrite advertised host for clients (env: DS_PUBLIC_HOST)",
     )
     parser.add_argument("--api-host", default=os.environ.get("DS_API_HOST", "0.0.0.0"))
-    parser.add_argument("--api-port", type=int, default=int(os.environ.get("DS_API_PORT", "8080")))
+    parser.add_argument("--api-port", type=int, default=int(os.environ.get("DS_API_PORT", "1096")))
 
     args = parser.parse_args(argv)
     if not args.ds_binary:

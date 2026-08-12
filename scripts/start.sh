@@ -12,10 +12,10 @@ cd "${ROOT_DIR}"
 PUBLIC_HOST="${1:-${PUBLIC_HOST:-}}"
 DS_BINARY="${DS_BINARY:-${ROOT_DIR}/ds/SwitchGame.x86_64}"
 API_HOST="${DS_API_HOST:-0.0.0.0}"
-API_PORT="${DS_API_PORT:-8080}"
+API_PORT="${DS_API_PORT:-1096}"
 PORT_MIN="${DS_PORT_MIN:-7777}"
-PORT_MAX="${DS_PORT_MAX:-7877}"
-MAX_ROOMS="${DS_MAX_ROOMS:-32}"
+PORT_MAX="${DS_PORT_MAX:-7780}"
+MAX_ROOMS="${DS_MAX_ROOMS:-4}"
 
 if [[ -z "${PUBLIC_HOST}" ]]; then
   echo "usage: $0 <public-host-ip>" >&2
