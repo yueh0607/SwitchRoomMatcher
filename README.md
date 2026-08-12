@@ -18,7 +18,7 @@ DS 以 **单个 zip** 放在腾讯云 COS（公有读）；本仓库不管打包
 # CentOS
 yum install -y git curl python3 unzip
 
-git clone https://github.com/yueh0607/SwitchRoomMatcher.git
+git clone https://gitee.com/imyueh/SwitchRoomMatcher.git
 cd SwitchRoomMatcher
 chmod +x scripts/*.sh
 
